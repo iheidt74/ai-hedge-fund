@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Анализатор токсичности и эгоцентризма</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d14;--surface:#15151f;--card:#1c1c2e;--border:#2a2a40;
+  --text:#e8e8f0;--muted:#8888aa;
+  --tox-1:#7c3aed;--tox-2:#a855f7;
+  --ego-1:#0891b2;--ego-2:#22d3ee;
+  --green:#34d399;--yellow:#fbbf24;--red:#f87171;
+  --radius:14px;--radius-sm:8px;--shadow:0 4px 24px rgba(0,0,0,.45)
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+#app{max-width:740px;margin:0 auto;padding:24px 16px 80px}
+.screen{animation:fadeIn .35s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+h1{font-size:clamp(1.8rem,5vw,2.6rem);font-weight:800;line-height:1.15}
+h2{font-size:1.4rem;font-weight:700}
+h3{font-size:1.1rem;font-weight:600}
+p{color:var(--muted);font-size:.95rem}
+.gradient-tox{background:linear-gradient(135deg,var(--tox-1),var(--tox-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.gradient-ego{background:linear-gradient(135deg,var(--ego-1),var(--ego-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer;transition:transform .15s,opacity .15s;text-decoration:none}
+.btn:hover{transform:translateY(-2px);opacity:.92}
+.btn:active{transform:translateY(0)}
+.btn-tox{background:linear-gradient(135deg,var(--tox-1),var(--tox-2));color:#fff;box-shadow:0 4px 18px rgba(168,85,247,.3)}
+.btn-ego{background:linear-gradient(135deg,var(--ego-1),var(--ego-2));color:#fff;box-shadow:0 4px 18px rgba(8,145,178,.3)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--tox-2);color:var(--text)}
+.btn-full{width:100%;justify-content:center}
+.progress-wrap{background:var(--border);border-radius:99px;height:5px;margin-bottom:28px;overflow:hidden}
+.progress-bar{height:100%;border-radius:99px;transition:width .4s ease}
+.progress-bar.tox{background:linear-gradient(90deg,var(--tox-1),var(--tox-2))}
+.progress-bar.ego{background:linear-gradient(90deg,var(--ego-1),var(--ego-2))}
+.q-counter{font-size:.8rem;color:var(--muted);margin-bottom:8px;text-align:right}
+.q-text{font-size:1.15rem;font-weight:500;color:var(--text);margin-bottom:24px;min-height:60px}
+.options{display:flex;flex-direction:column;gap:10px}
+.option-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px 18px;color:var(--text);font-family:inherit;font-size:.93rem;text-align:left;cursor:pointer;transition:border-color .2s,background .2s,transform .1s;display:flex;align-items:center;gap:12px}
+.option-btn .dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:background .2s,border-color .2s;display:flex;align-items:center;justify-content:center;font-size:.7rem}
+.option-btn:hover{border-color:var(--tox-2);background:rgba(168,85,247,.07);transform:translateX(3px)}
+.option-btn.ego:hover{border-color:var(--ego-2);background:rgba(34,211,238,.07)}
+.option-btn.selected{border-color:var(--tox-2);background:rgba(168,85,247,.12)}
+.option-btn.selected .dot{background:var(--tox-2);border-color:var(--tox-2)}
+.option-btn.ego.selected{border-color:var(--ego-2);background:rgba(34,211,238,.12)}
+.option-btn.ego.selected .dot{background:var(--ego-2);border-color:var(--ego-2)}
+.nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:28px;gap:12px}
+.score-ring-wrap{display:flex;justify-content:center;margin:28px 0}
+.score-ring-wrap canvas{max-width:180px}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
+.stat-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 10px;text-align:center}
+.stat-item .sv{font-size:1.5rem;font-weight:700;margin-bottom:2px}
+.stat-item .sl{font-size:.75rem;color:var(--muted)}
+.percentile-badge{background:linear-gradient(135deg,var(--tox-1),var(--tox-2));border-radius:99px;padding:6px 18px;font-size:.9rem;font-weight:700;display:inline-block;margin-bottom:8px}
+.percentile-badge.ego{background:linear-gradient(135deg,var(--ego-1),var(--ego-2))}
+.interp{border-radius:var(--radius-sm);padding:16px 20px;margin:16px 0;border-left:4px solid}
+.interp.l0{background:rgba(52,211,153,.08);border-color:var(--green)}
+.interp.l1{background:rgba(251,191,36,.08);border-color:var(--yellow)}
+.interp.l2{background:rgba(248,113,113,.08);border-color:var(--red)}
+.interp.l3{background:rgba(168,85,247,.08);border-color:var(--tox-2)}
+.interp .it{font-weight:700;font-size:1rem;color:var(--text)}
+.interp .id{font-size:.88rem;color:var(--muted);margin-top:4px}
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px 16px 12px;margin-top:16px}
+.chart-title{font-size:.85rem;color:var(--muted);margin-bottom:12px;text-align:center}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.25);border-radius:99px;padding:5px 14px;font-size:.8rem;color:var(--tox-2);margin-bottom:20px}
+.quiz-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:32px 0}
+@media(max-width:500px){.quiz-grid{grid-template-columns:1fr}}
+.quiz-card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px 20px;cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;display:flex;flex-direction:column;gap:10px}
+.quiz-card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.quiz-card.tox:hover{border-color:var(--tox-2);box-shadow:0 8px 30px rgba(168,85,247,.2)}
+.quiz-card.ego:hover{border-color:var(--ego-2);box-shadow:0 8px 30px rgba(34,211,238,.2)}
+.quiz-icon{font-size:2.2rem}
+.quiz-meta{font-size:.8rem;color:var(--muted)}
+.tag{display:inline-flex;align-items:center;border-radius:99px;padding:3px 10px;font-size:.75rem;font-weight:600}
+.tag-tox{background:rgba(168,85,247,.15);color:var(--tox-2)}
+.tag-ego{background:rgba(34,211,238,.15);color:var(--ego-2)}
+.divider{border:none;border-top:1px solid var(--border);margin:24px 0}
+.result-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+.mt-4{margin-top:4px}.mt-8{margin-top:8px}.mt-16{margin-top:16px}.mt-24{margin-top:24px}
+.mb-16{margin-bottom:16px}
+.text-center{text-align:center}
+.text-muted{color:var(--muted);font-size:.88rem}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* History panel */
+.history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.history-badge{border-radius:99px;padding:2px 10px;font-size:.78rem;font-weight:700}
+.history-badge.tox{background:rgba(168,85,247,.2);color:var(--tox-2)}
+.history-badge.ego{background:rgba(34,211,238,.2);color:var(--ego-2)}
+.history-score{font-size:1.3rem;font-weight:700}
+.history-date{font-size:.75rem;color:var(--muted)}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── Seeded comparison data ────────────────────────────────────────────────
+// Pre-generated realistic distributions (200 samples each)
+const SEED_TOX = [8,11,13,14,15,16,17,18,18,19,19,20,20,21,21,21,22,22,22,23,23,23,24,24,24,24,25,25,25,25,26,26,26,27,27,27,27,28,28,28,29,29,29,30,30,30,30,31,31,31,31,32,32,32,33,33,33,34,34,34,35,35,35,35,36,36,36,37,37,37,38,38,38,39,39,39,40,40,41,41,42,42,43,43,44,44,45,45,46,46,47,47,48,49,50,51,52,53,54,55,56,57,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,14,17,20,23,26,29,32,35,38,41,16,19,22,25,28,31,34,37,40,43,15,18,21,24,27,30,33,36,39,42,13,16,19,22,25,28,31,34,37,40,17,20,23,26,29,32,35,38,41,44,18,21,24,27,30,33,36,39,42,45,19,22,25,28,31,34,37,40,43,46];
+const SEED_EGO = [10,14,17,19,21,22,23,24,25,26,27,27,28,28,29,29,30,30,31,31,32,32,33,33,33,34,34,34,35,35,35,36,36,36,36,37,37,37,38,38,38,39,39,39,40,40,40,40,41,41,41,42,42,42,43,43,43,44,44,44,45,45,45,46,46,46,47,47,47,48,48,48,49,49,50,50,51,51,52,52,53,53,54,54,55,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,82,83,85,25,28,31,34,37,40,22,25,28,31,34,37,27,30,33,36,39,42,24,27,30,33,36,39,29,32,35,38,41,44,26,29,32,35,38,41,23,26,29,32,35,38,28,31,34,37,40,43,21,24,27,30,33,36,30,33,36,39,42,45,31,34,37,40,43,46,25,28,31,34,37,40,26,29,32,35,38,41,27,30,33,36,39,42,28,31,34,37,40,43];
+
+// ── Questions ─────────────────────────────────────────────────────────────
+const LABELS=["Никогда","Очень редко","Иногда","Довольно часто","Всегда / постоянно"];
+const TOX_Q=[
+  "Когда кто-то не соглашается со мной, я повышаю голос или становлюсь агрессивным.",
+  "Я жёстко критикую других людей публично, не думая об их чувствах.",
+  "Я испытываю удовольствие, когда кто-то терпит неудачу или выглядит плохо.",
+  "Я использую сарказм и насмешки, чтобы поставить людей на место.",
+  "Я перебиваю собеседников, не давая им договорить до конца.",
+  "Я долго держу обиду и не могу простить, даже когда меня искренне просят об этом.",
+  "Я распускаю слухи или говорю плохое о людях за их спиной.",
+  "Я намеренно игнорирую человека (молчаливое наказание), если он меня расстроил.",
+  "Я обвиняю других в своих ошибках, вместо того чтобы признать их.",
+  "Я реагирую на любую критику в свой адрес враждебностью или агрессией.",
+  "Мне нравится вызывать драму и конфликты в группе — это делает жизнь интереснее.",
+  "Я использую чужие секреты или слабости как оружие в спорах.",
+  "Я заставляю людей чувствовать себя виноватыми, чтобы добиться желаемого.",
+  "Я унижаю или высмеиваю других, когда хочу почувствовать себя лучше.",
+  "Я нарочно не отвечаю на сообщения или звонки, чтобы наказать человека.",
+];
+const EGO_Q=[
+  "Я считаю, что мои потребности важнее потребностей окружающих.",
+  "В разговоре я очень много говорю о себе и своих делах.",
+  "Мне сложно искренне порадоваться за чужой успех — я чаще завидую.",
+  "Я редко интересуюсь делами других людей, если это не касается меня.",
+  "Мне сложно признать свою неправоту перед другими.",
+  "Я ожидаю особого отношения к себе — больше, чем другие заслуживают.",
+  "Я думаю, что я талантливее и умнее большинства людей вокруг.",
+  "Мне становится скучно или раздражительно, когда разговор не обо мне.",
+  "Я с трудом сочувствую чужим проблемам — «их проблемы, не мои».",
+  "Правила и договорённости, которые все соблюдают, ко мне не относятся.",
+  "Я редко помогаю другим, не ожидая ничего взамен.",
+  "Я уверен, что заслуживаю больше признания, чем получаю.",
+  "Мне трудно по-настоящему слушать других — я думаю о своём.",
+  "Я ставлю собственный комфорт выше неудобства, которое это причиняет другим.",
+  "Я считаю, что большинство критики в мой адрес — это просто зависть.",
+];
+const TOX_LEVELS=[
+  {min:0,max:25,emoji:"😌",cls:"l0",title:"Низкая токсичность",desc:"Ты ведёшь себя уважительно и конструктивно. Конфликты — исключение, а не норма. Так держать!"},
+  {min:26,max:50,emoji:"😐",cls:"l1",title:"Умеренная токсичность",desc:"Иногда ты реагируешь резко или деструктивно. Есть точки роста — особенно в стрессовых ситуациях."},
+  {min:51,max:72,emoji:"😤",cls:"l2",title:"Высокая токсичность",desc:"Твоё поведение регулярно причиняет дискомфорт окружающим. Стоит поработать над управлением эмоциями."},
+  {min:73,max:100,emoji:"🔥",cls:"l3",title:"Очень высокая токсичность",desc:"Твой стиль общения активно вредит отношениям. Честная самооценка — уже первый шаг к изменениям."},
+];
+const EGO_LEVELS=[
+  {min:0,max:25,emoji:"🤝",cls:"l0",title:"Низкий эгоцентризм",desc:"Ты внимателен к людям вокруг и редко ставишь себя в центр Вселенной."},
+  {min:26,max:50,emoji:"🙂",cls:"l1",title:"Умеренный эгоцентризм",desc:"Ты думаешь о себе чуть больше среднего, но это в пределах нормы."},
+  {min:51,max:72,emoji:"😏",cls:"l2",title:"Высокий эгоцентризм",desc:"Ты часто ставишь свои интересы выше чужих. Людям рядом не хватает внимания и понимания."},
+  {min:73,max:100,emoji:"👑",cls:"l3",title:"Выраженный нарциссизм",desc:"Мир крутится вокруг тебя — по крайней мере, в твоей голове."},
+];
+
+// ── State ─────────────────────────────────────────────────────────────────
+const S={screen:"home",quizType:null,currentQ:0,answers:[],result:null};
+let ring=null,bar=null;
+
+// ── LocalStorage ──────────────────────────────────────────────────────────
+function getHistory(){try{return JSON.parse(localStorage.getItem("tox_history")||"[]")}catch{return[]}}
+function saveResult(type,score){
+  const h=getHistory();
+  h.unshift({type,score,date:new Date().toLocaleDateString("ru-RU")});
+  localStorage.setItem("tox_history",JSON.stringify(h.slice(0,20)));
+}
+function getSeeded(type){
+  return type==="toxicity"?[...SEED_TOX]:[...SEED_EGO];
+}
+
+// ── Score ─────────────────────────────────────────────────────────────────
+function calcScore(){
+  const n=S.answers.length;
+  const sum=S.answers.reduce((a,b)=>a+b,0);
+  return Math.round(((sum-n)/(4*n))*100);
+}
+function calcStats(type,score){
+  const scores=[...getSeeded(type),score].sort((a,b)=>a-b);
+  const n=scores.length;
+  const below=scores.filter(s=>s<score).length;
+  const percentile=Math.round(below/n*100);
+  const mean=Math.round(scores.reduce((a,b)=>a+b,0)/n);
+  const median=Math.round(scores[Math.floor(n/2)]);
+  const dist=Array(10).fill(0);
+  scores.forEach(s=>dist[Math.min(9,Math.floor(s/10))]++);
+  return{score,percentile,mean,median,dist,total:n};
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById("app");
+  if(S.screen==="home")app.innerHTML=renderHome();
+  if(S.screen==="quiz")app.innerHTML=renderQuiz();
+  if(S.screen==="result"){app.innerHTML=renderResult();initCharts();}
+  attach();
+}
+
+function renderHome(){
+  const hist=getHistory();
+  const histHTML=hist.length===0
+    ?`<div class="empty-state">Ты ещё не проходил тесты</div>`
+    :hist.map(h=>`
+      <div class="history-item">
+        <div>
+          <span class="history-badge ${h.type==="toxicity"?"tox":"ego"}">${h.type==="toxicity"?"☢️ Токсичность":"🪞 Эгоцентризм"}</span>
+          <div class="history-date mt-4">${h.date}</div>
+        </div>
+        <div class="history-score" style="color:${h.type==="toxicity"?"var(--tox-2)":"var(--ego-2)"}">${h.score}</div>
+      </div>`).join("");
+  return`
+  <div class="screen">
+    <div style="margin-bottom:40px">
+      <div class="hero-badge">✦ Психологический тест</div>
+      <h1>Узнай, насколько ты<br><span class="gradient-tox">токсичен</span> и<br><span class="gradient-ego">эгоцентричен</span></h1>
+      <p class="mt-8" style="font-size:1rem;max-width:500px">Пройди опросник и сравни результат с другими людьми. Честные ответы дадут честный результат.</p>
+    </div>
+    <div class="quiz-grid">
+      <div class="quiz-card tox" data-a="start" data-t="toxicity">
+        <div class="quiz-icon">☢️</div>
+        <h3 class="gradient-tox">Анализатор токсичности</h3>
+        <p>Насколько твоё поведение вредит окружающим?</p>
+        <div class="quiz-meta"><span class="tag tag-tox">15 вопросов</span> &nbsp;≈ 3 мин</div>
+      </div>
+      <div class="quiz-card ego" data-a="start" data-t="ego">
+        <div class="quiz-icon">🪞</div>
+        <h3 class="gradient-ego">Тест на эгоцентризм</h3>
+        <p>Насколько ты сосредоточен на себе?</p>
+        <div class="quiz-meta"><span class="tag tag-ego">15 вопросов</span> &nbsp;≈ 3 мин</div>
+      </div>
+    </div>
+    <p class="text-muted text-center" style="margin-top:8px">Результаты сохраняются только в этом браузере</p>
+    ${hist.length>0?`
+    <div class="mt-24">
+      <h3 class="mb-16">Твои предыдущие результаты</h3>
+      ${histHTML}
+    </div>`:""}
+  </div>`;
+}
+
+function renderQuiz(){
+  const isTox=S.quizType==="toxicity";
+  const qs=isTox?TOX_Q:EGO_Q;
+  const q=qs[S.currentQ];
+  const total=qs.length;
+  const pct=Math.round((S.currentQ/total)*100);
+  const cls=isTox?"tox":"ego";
+  const sel=S.answers[S.currentQ];
+  return`
+  <div class="screen">
+    <button class="btn btn-ghost" data-a="home" style="margin-bottom:20px;padding:8px 14px;font-size:.82rem">← Назад на главную</button>
+    <div class="progress-wrap"><div class="progress-bar ${cls}" style="width:${pct}%"></div></div>
+    <div class="q-counter">${S.currentQ+1} / ${total}</div>
+    <div class="card">
+      <div class="q-text">${q}</div>
+      <div class="options">
+        ${LABELS.map((lbl,i)=>{
+          const v=i+1;const isSel=sel===v;
+          return`<button class="option-btn ${cls} ${isSel?"selected":""}" data-a="answer" data-v="${v}">
+            <div class="dot">${isSel?"✓":""}</div><span>${lbl}</span></button>`;
+        }).join("")}
+      </div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" data-a="prev" ${S.currentQ===0?"disabled":""}>← Назад</button>
+        <button class="btn btn-${cls}" data-a="next" ${sel==null?"disabled style='opacity:.45;cursor:not-allowed'":""}>
+          ${S.currentQ===total-1?"Завершить →":"Далее →"}
+        </button>
+      </div>
+    </div>
+    <p class="text-muted text-center mt-16">Отвечай честно — тест только для тебя</p>
+  </div>`;
+}
+
+function renderResult(){
+  const r=S.result;
+  const isTox=S.quizType==="toxicity";
+  const levels=isTox?TOX_LEVELS:EGO_LEVELS;
+  const cls=isTox?"tox":"ego";
+  const lv=levels.find(l=>r.score>=l.min&&r.score<=l.max)||levels[levels.length-1];
+  const higher=(100-r.percentile);
+  return`
+  <div class="screen">
+    <button class="btn btn-ghost" data-a="home" style="margin-bottom:20px;padding:8px 14px;font-size:.82rem">← На главную</button>
+    <div class="card">
+      <div class="text-center">
+        <span style="font-size:3rem;display:block;margin-bottom:12px">${lv.emoji}</span>
+        <h2>${lv.title}</h2>
+        <p class="mt-4" style="font-size:.95rem">${isTox?'<span class="gradient-tox">Токсичность</span>':'<span class="gradient-ego">Эгоцентризм</span>'}</p>
+      </div>
+      <div class="score-ring-wrap"><canvas id="ringChart" width="180" height="180"></canvas></div>
+      <div class="interp ${lv.cls}">
+        <div class="it">${lv.title}</div>
+        <div class="id">${lv.desc}</div>
+      </div>
+      <hr class="divider"/>
+      <h3 class="mb-16">Сравнение с другими</h3>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="sv" style="color:var(--${cls==="tox"?"tox-2":"ego-2"})">${r.score}</div><div class="sl">Твой балл</div></div>
+        <div class="stat-item"><div class="sv">${r.mean}</div><div class="sl">Средний балл</div></div>
+        <div class="stat-item"><div class="sv">${r.median}</div><div class="sl">Медиана</div></div>
+      </div>
+      <div class="text-center mt-8 mb-16">
+        <span class="percentile-badge ${cls}">Топ ${higher}% ${isTox?"токсичнее тебя":"эгоцентричнее тебя"}</span>
+        <p class="text-muted mt-4">
+          Ты ${r.percentile<50?"менее":"более"} ${isTox?"токсичен":"эгоцентричен"}, чем ${r.percentile}% участников (${r.total.toLocaleString()} чел.)
+        </p>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Распределение баллов среди всех участников</div>
+        <canvas id="barChart" height="160"></canvas>
+      </div>
+      <div class="result-actions">
+        <button class="btn btn-${cls} btn-full" data-a="retry">Пройти снова</button>
+        <button class="btn btn-ghost btn-full" data-a="other">${isTox?"Тест на эгоцентризм 🪞":"Тест на токсичность ☢️"}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────
+function initCharts(){
+  const r=S.result;
+  const isTox=S.quizType==="toxicity";
+  const c1=isTox?"#7c3aed":"#0891b2";
+  const c2=isTox?"#a855f7":"#22d3ee";
+  if(ring)ring.destroy();
+  const rc=document.getElementById("ringChart");
+  if(rc)ring=new Chart(rc,{type:"doughnut",data:{datasets:[{data:[r.score,100-r.score],backgroundColor:[c2,"#2a2a40"],borderWidth:0,circumference:300,rotation:-150}]},
+    options:{cutout:"78%",plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:900}},
+    plugins:[{id:"ct",afterDraw(ch){const{ctx,width,height}=ch;ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";const cx=width/2,cy=height/2+8;ctx.font="bold 2rem Inter,sans-serif";ctx.fillStyle="#e8e8f0";ctx.fillText(r.score,cx,cy-8);ctx.font=".75rem Inter,sans-serif";ctx.fillStyle="#8888aa";ctx.fillText("из 100",cx,cy+20);ctx.restore();}}]});
+  if(bar)bar.destroy();
+  const bc=document.getElementById("barChart");
+  const lbls=["0-9","10-19","20-29","30-39","40-49","50-59","60-69","70-79","80-89","90-100"];
+  const myB=Math.min(9,Math.floor(r.score/10));
+  if(bc)bar=new Chart(bc,{type:"bar",data:{labels:lbls,datasets:[{data:r.dist,backgroundColor:r.dist.map((_,i)=>i===myB?c2:"#2a2a40"),borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw} чел.`}}},
+    scales:{x:{ticks:{color:"#8888aa",font:{size:10}},grid:{display:false}},y:{ticks:{color:"#8888aa",font:{size:10}},grid:{color:"#2a2a40"}}},animation:{duration:800}}});
+}
+
+// ── Events ────────────────────────────────────────────────────────────────
+function attach(){
+  document.querySelectorAll("[data-a]").forEach(el=>el.addEventListener("click",handle));
+}
+function handle(e){
+  const el=e.currentTarget;
+  const a=el.dataset.a;
+  if(a==="start"){S.quizType=el.dataset.t;S.currentQ=0;S.answers=[];S.screen="quiz";render();}
+  if(a==="home"){S.screen="home";render();}
+  if(a==="answer"){S.answers[S.currentQ]=parseInt(el.dataset.v);render();}
+  if(a==="prev"){if(S.currentQ>0){S.currentQ--;render();}}
+  if(a==="next"){
+    const qs=S.quizType==="toxicity"?TOX_Q:EGO_Q;
+    if(S.answers[S.currentQ]==null)return;
+    if(S.currentQ<qs.length-1){S.currentQ++;render();}
+    else{
+      const score=calcScore();
+      saveResult(S.quizType,score);
+      S.result=calcStats(S.quizType,score);
+      S.screen="result";render();
+    }
+  }
+  if(a==="retry"){S.currentQ=0;S.answers=[];S.screen="quiz";render();}
+  if(a==="other"){S.quizType=S.quizType==="toxicity"?"ego":"toxicity";S.currentQ=0;S.answers=[];S.screen="quiz";render();}
+}
+
+render();
+</script>
+</body>
+</html>
