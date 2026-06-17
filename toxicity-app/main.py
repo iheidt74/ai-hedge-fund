@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import json
 import random
@@ -9,7 +10,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-DB_PATH = "toxicity.db"
+DB_PATH = os.environ.get("DB_PATH", "toxicity.db")
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="Toxicity Analyzer")
